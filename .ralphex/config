@@ -1,0 +1,10 @@
+# ralphex config
+# uses opencode as the AI backend instead of claude/codex
+
+# replace claude with opencode wrapper
+claude_command = .ralphex/opencode-as-claude.sh
+claude_args =
+
+# use opencode for external review phase too
+external_review_tool = custom
+custom_review_script = .ralphex/opencode-review.sh
