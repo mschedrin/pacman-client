@@ -68,6 +68,21 @@ class LobbyWidget(Static):
 
         return text
 
+    def set_status(self, message: str) -> None:
+        """Display a status message in place of the player list.
+
+        Used during connecting/reconnecting to show connection status
+        prominently instead of the misleading lobby view.
+
+        Args:
+            message: The status message to display.
+        """
+        text = Text()
+        text.append("PACMAN", style="bold yellow")
+        text.append("\n\n")
+        text.append(message, style="bright_black")
+        self.update(text)
+
     def on_mount(self) -> None:
         """Render initial empty lobby on mount."""
         self.update(self._render_lobby())

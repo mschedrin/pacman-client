@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from helpers import FakeWebSocket
 
-from pacman.client import PacmanClient
+from pacman.client import ConnectionFailed, PacmanClient
 from pacman.models import Error, Lobby, RoundEnd, RoundStart, State, Welcome
 
 # --- Fixtures ---
@@ -74,6 +74,98 @@ class TestConnect:
         """connected is False after the connection has been closed."""
         fake_ws.close_code = 1000
         assert not client.connected
+
+
+# --- Connection error tests ---
+
+
+class TestConnectErrors:
+    """Tests for connection error handling."""
+
+    @pytest.mark.asyncio
+    async def test_timeout_raises_connection_failed(self) -> None:
+        """connect() raises ConnectionFailed on timeout."""
+        with patch(
+            "pacman.client.websockets.connect", new_callable=AsyncMock
+        ) as mock_connect:
+            mock_connect.side_effect = TimeoutError()
+            client = PacmanClient()
+            with pytest.raises(ConnectionFailed, match="timed out"):
+                await client.connect("ws://localhost:8000/ws")
+
+    @pytest.mark.asyncio
+    async def test_refused_raises_connection_failed(self) -> None:
+        """connect() raises ConnectionFailed when server refuses connection."""
+        with patch(
+            "pacman.client.websockets.connect", new_callable=AsyncMock
+        ) as mock_connect:
+            mock_connect.side_effect = ConnectionRefusedError("Connection refused")
+            client = PacmanClient()
+            with pytest.raises(ConnectionFailed, match="Cannot connect"):
+                await client.connect("ws://localhost:8000/ws")
+
+    @pytest.mark.asyncio
+    async def test_dns_failure_raises_connection_failed(self) -> None:
+        """connect() raises ConnectionFailed on DNS resolution failure."""
+        import socket
+
+        with patch(
+            "pacman.client.websockets.connect", new_callable=AsyncMock
+        ) as mock_connect:
+            mock_connect.side_effect = socket.gaierror(8, "Name or service not known")
+            client = PacmanClient()
+            with pytest.raises(ConnectionFailed, match="Cannot connect"):
+                await client.connect("ws://badhost:8000/ws")
+
+    @pytest.mark.asyncio
+    async def test_error_message_includes_url(self) -> None:
+        """ConnectionFailed message includes the URL."""
+        with patch(
+            "pacman.client.websockets.connect", new_callable=AsyncMock
+        ) as mock_connect:
+            mock_connect.side_effect = OSError("test error")
+            client = PacmanClient()
+            with pytest.raises(ConnectionFailed, match="ws://example.com/ws"):
+                await client.connect("ws://example.com/ws")
+
+    @pytest.mark.asyncio
+    async def test_unexpected_error_raises_connection_failed(self) -> None:
+        """connect() wraps unexpected errors in ConnectionFailed."""
+        with patch(
+            "pacman.client.websockets.connect", new_callable=AsyncMock
+        ) as mock_connect:
+            mock_connect.side_effect = ValueError("unexpected")
+            client = PacmanClient()
+            with pytest.raises(ConnectionFailed, match="Failed to connect"):
+                await client.connect("ws://localhost:8000/ws")
+
+    @pytest.mark.asyncio
+    async def test_failure_leaves_client_disconnected(self) -> None:
+        """Client remains disconnected after a failed connect attempt."""
+        with patch(
+            "pacman.client.websockets.connect", new_callable=AsyncMock
+        ) as mock_connect:
+            mock_connect.side_effect = OSError("Connection refused")
+            client = PacmanClient()
+            with pytest.raises(ConnectionFailed):
+                await client.connect("ws://localhost:8000/ws")
+            assert not client.connected
+
+    @pytest.mark.asyncio
+    async def test_stale_connection_cleaned_up_on_failure(self) -> None:
+        """Stale connection is closed even when new connect fails."""
+        old_ws = FakeWebSocket()
+        client = PacmanClient()
+        client._ws = old_ws
+
+        with patch(
+            "pacman.client.websockets.connect", new_callable=AsyncMock
+        ) as mock_connect:
+            mock_connect.side_effect = OSError("Connection refused")
+            with pytest.raises(ConnectionFailed):
+                await client.connect("ws://localhost:8000/ws")
+            assert old_ws.closed
+            assert not client.connected
 
 
 # --- Join tests ---

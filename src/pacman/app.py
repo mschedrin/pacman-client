@@ -10,7 +10,7 @@ from textual.timer import Timer
 from textual.widgets import Footer, Header, Static
 from websockets.exceptions import ConnectionClosed
 
-from pacman.client import PacmanClient
+from pacman.client import ConnectionFailed, PacmanClient
 from pacman.models import (
     Error,
     Lobby,
@@ -233,6 +233,19 @@ class PacmanApp(App[None]):
                 # messages() ended normally (server closed connection cleanly)
                 await self.client.close()
 
+            except ConnectionFailed as exc:
+                if not self.reconnect_enabled:
+                    self._update_status(str(exc))
+                    return
+
+                self._set_phase(PHASE_CONNECTING)
+                delay = self.backoff.next_delay()
+                self._update_status(
+                    f"{exc} — reconnecting in {delay:.0f}s..."
+                )
+                await asyncio.sleep(delay)
+                continue
+
             except Exception as exc:
                 error_str = str(exc)
                 try:
@@ -446,12 +459,18 @@ class PacmanApp(App[None]):
             game.display = True
 
     def _update_status(self, text: str) -> None:
-        """Update the status bar text."""
+        """Update the status bar and, during connecting phase, the lobby widget."""
         try:
             status = self.query_one("#status", StatusBar)
             status.set_status(text)
         except NoMatches:
             pass
+        if self._phase == PHASE_CONNECTING:
+            try:
+                lobby = self.query_one("#lobby", LobbyWidget)
+                lobby.set_status(text)
+            except NoMatches:
+                pass
 
     async def action_direction(self, direction: str) -> None:
         """Handle arrow key input: send direction to server."""

@@ -12,6 +12,10 @@ from pacman.models import ServerMessage, parse_message
 # Valid directions accepted by the server
 VALID_DIRECTIONS = frozenset({"up", "down", "left", "right"})
 
+
+class ConnectionFailed(Exception):
+    """Raised when the client cannot establish a connection to the server."""
+
 # Timeout for the WebSocket opening handshake (seconds)
 CONNECT_TIMEOUT = 10
 
@@ -42,6 +46,9 @@ class PacmanClient:
 
         Args:
             url: The WebSocket URL (e.g. ws://localhost:8000/ws).
+
+        Raises:
+            ConnectionFailed: If the connection cannot be established.
         """
         if self._ws is not None:
             try:
@@ -49,7 +56,20 @@ class PacmanClient:
             except Exception:
                 pass
             self._ws = None
-        self._ws = await websockets.connect(url, open_timeout=CONNECT_TIMEOUT)
+        try:
+            self._ws = await websockets.connect(url, open_timeout=CONNECT_TIMEOUT)
+        except TimeoutError:
+            raise ConnectionFailed(
+                f"Connection to {url} timed out after {CONNECT_TIMEOUT}s"
+            ) from None
+        except OSError as exc:
+            raise ConnectionFailed(
+                f"Cannot connect to {url}: {exc}"
+            ) from None
+        except Exception as exc:
+            raise ConnectionFailed(
+                f"Failed to connect to {url}: {exc}"
+            ) from None
         self._last_direction = None
 
     async def close(self) -> None:

@@ -17,7 +17,7 @@ from pacman.app import (
     ReconnectBackoff,
     StatusBar,
 )
-from pacman.client import PacmanClient
+from pacman.client import ConnectionFailed, PacmanClient
 from pacman.widgets.game import GameWidget
 from pacman.widgets.lobby import LobbyWidget
 
@@ -919,3 +919,91 @@ class TestDisconnection:
                 await pilot.pause()
             status = app.query_one("#status", StatusBar)
             assert "Disconnected" in status.status_text
+
+    @pytest.mark.asyncio
+    async def test_connection_failed_shows_in_status(self) -> None:
+        """ConnectionFailed shows user-friendly message without 'Disconnected' prefix."""
+        client = PacmanClient()
+
+        async def failing_connect(url: str) -> None:
+            raise ConnectionFailed(f"Cannot connect to {url}: Connection refused")
+
+        client.connect = failing_connect  # type: ignore[assignment]
+
+        app = PacmanApp(
+            url="ws://localhost:8000/ws",
+            player_name="TestPlayer",
+            client=client,
+            reconnect=False,
+        )
+        async with app.run_test(size=(80, 24)) as pilot:
+            for _ in range(5):
+                await pilot.pause()
+            status = app.query_one("#status", StatusBar)
+            assert "Cannot connect" in status.status_text
+            assert not status.status_text.startswith("Disconnected")
+
+    @pytest.mark.asyncio
+    async def test_connection_failed_reconnects(self) -> None:
+        """ConnectionFailed triggers reconnect with backoff message."""
+        client = PacmanClient()
+        connect_count = 0
+
+        async def counting_connect(url: str) -> None:
+            nonlocal connect_count
+            connect_count += 1
+            raise ConnectionFailed(f"Cannot connect to {url}: Connection refused")
+
+        client.connect = counting_connect  # type: ignore[assignment]
+
+        app = PacmanApp(
+            url="ws://localhost:8000/ws",
+            player_name="TestPlayer",
+            client=client,
+            reconnect=False,
+        )
+        async with app.run_test(size=(80, 24)) as pilot:
+            for _ in range(5):
+                await pilot.pause()
+            status = app.query_one("#status", StatusBar)
+            assert "Cannot connect" in status.status_text
+            assert connect_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_connection_failed_shows_in_lobby_widget(self) -> None:
+        """ConnectionFailed error is shown prominently in the lobby widget."""
+        client = PacmanClient()
+
+        async def failing_connect(url: str) -> None:
+            raise ConnectionFailed(f"Cannot connect to {url}: Connection refused")
+
+        client.connect = failing_connect  # type: ignore[assignment]
+
+        app = PacmanApp(
+            url="ws://localhost:8000/ws",
+            player_name="TestPlayer",
+            client=client,
+            reconnect=False,
+        )
+        async with app.run_test(size=(80, 24)) as pilot:
+            for _ in range(5):
+                await pilot.pause()
+            lobby = app.query_one("#lobby", LobbyWidget)
+            rendered = lobby.render()
+            plain = rendered.plain if hasattr(rendered, "plain") else str(rendered)
+            assert "Cannot connect" in plain
+            assert "Waiting for round to start" not in plain
+
+    @pytest.mark.asyncio
+    async def test_connecting_phase_shows_status_in_lobby(self) -> None:
+        """During connecting phase, lobby shows connection status, not 'Waiting'."""
+        app, fake_ws, _ = _make_app_with_fake_ws(reconnect=False)
+        fake_ws.queue_close()
+        async with app.run_test(size=(80, 24)) as pilot:
+            for _ in range(5):
+                await pilot.pause()
+            lobby = app.query_one("#lobby", LobbyWidget)
+            rendered = lobby.render()
+            plain = rendered.plain if hasattr(rendered, "plain") else str(rendered)
+            # Should not show the misleading "Waiting for round to start"
+            assert "Waiting for round to start" not in plain
