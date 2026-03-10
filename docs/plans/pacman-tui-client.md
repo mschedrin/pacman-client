@@ -46,12 +46,12 @@
 - [x] Run tests (empty suite) — must pass before next task
 
 ### Task 2: Protocol models
-- [ ] Create `src/pacman/models.py` with dataclasses for all 6 server message types: `Welcome`, `Lobby`, `RoundStart`, `State`, `RoundEnd`, `Error`
-- [ ] Add nested dataclasses: `Player`, `RoundPlayer`, `StatePlayer`, `GameMap`, `GameConfig`, `Position`
-- [ ] Add `parse_message(data: dict) -> ServerMessage` function that dispatches on `type` field
-- [ ] Write tests for `parse_message` — all 6 message types with realistic payloads
-- [ ] Write tests for edge cases (unknown type, missing fields)
-- [ ] Run tests — must pass before next task
+- [x] Create `src/pacman/models.py` with dataclasses for all 6 server message types: `Welcome`, `Lobby`, `RoundStart`, `State`, `RoundEnd`, `Error`
+- [x] Add nested dataclasses: `Player`, `RoundPlayer`, `StatePlayer`, `GameMap`, `GameConfig`, `Position`
+- [x] Add `parse_message(data: dict) -> ServerMessage` function that dispatches on `type` field
+- [x] Write tests for `parse_message` — all 6 message types with realistic payloads
+- [x] Write tests for edge cases (unknown type, missing fields)
+- [x] Run tests — must pass before next task
 
 ### Task 3: WebSocket client
 - [ ] Create `src/pacman/client.py` with `PacmanClient` class
