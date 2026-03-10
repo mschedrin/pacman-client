@@ -79,6 +79,22 @@ stderr_file=$(mktemp)
 stdout_pipe="$tmp_dir/stdout.fifo"
 mkfifo "$stdout_pipe"
 
+# write output rules instruction file to prevent LLM from echoing signal strings.
+# opencode's system prompt lacks Claude Code's "do not restate what the user said"
+# directive, so the model may echo <<<RALPHEX:...>>> signals from the prompt in its
+# planning output, causing false signal detection in ralphex.
+instructions_file="$tmp_dir/output-rules.md"
+cat > "$instructions_file" <<'INSTREOF'
+# Output rules
+- Be concise and direct. Lead with the answer or action, not the reasoning.
+- Do not restate or echo the user's prompt. Skip preamble and unnecessary transitions.
+- NEVER quote <<<RALPHEX:...>>> signal strings in your planning or reasoning output. Only emit them as actual signals when the instructions tell you to.
+INSTREOF
+
+# merge instructions file path into OPENCODE_CONFIG_CONTENT
+OPENCODE_CONFIG_CONTENT=$(echo "$OPENCODE_CONFIG_CONTENT" | jq -c --arg f "$instructions_file" '. * {instructions: [($f)]}')
+export OPENCODE_CONFIG_CONTENT
+
 # cleanup temp files on exit
 cleanup() {
     rm -f "$stderr_file" "$stdout_pipe"

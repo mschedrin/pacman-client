@@ -8,6 +8,7 @@ from textual.binding import Binding
 from textual.css.query import NoMatches
 from textual.timer import Timer
 from textual.widgets import Footer, Header, Static
+from websockets.exceptions import ConnectionClosed
 
 from pacman.client import PacmanClient
 from pacman.models import (
@@ -458,7 +459,7 @@ class PacmanApp(App[None]):
             return
         try:
             await self.client.send_direction(direction)
-        except (RuntimeError, OSError):
+        except (RuntimeError, OSError, ConnectionClosed):
             # Connection lost — the reconnect loop will handle it
             pass
 
