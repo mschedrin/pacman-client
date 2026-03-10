@@ -1,0 +1,1 @@
+"""Multiplayer Pacman TUI client."""

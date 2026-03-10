@@ -1,3 +1,15 @@
 TODO.md
 .devcontainer/home/
 .claude/settings.local.json
+
+# ralphex progress logs
+.ralphex/progress/
+
+# Python
+__pycache__/
+*.egg-info/
+*.pyc
+.venv/
+.pytest_cache/
+dist/
+build/

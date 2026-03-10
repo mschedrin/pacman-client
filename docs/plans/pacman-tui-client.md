@@ -39,11 +39,11 @@
 ## Implementation Steps
 
 ### Task 1: Project scaffolding
-- [ ] Create `pyproject.toml` with dependencies (textual, websockets) and project metadata
-- [ ] Create `src/pacman/__init__.py` and `src/pacman/__main__.py` entry point (accepts `--host` arg)
-- [ ] Create `tests/` directory with `conftest.py`
-- [ ] Install project in dev mode, verify `python -m pacman --help` runs
-- [ ] Run tests (empty suite) — must pass before next task
+- [x] Create `pyproject.toml` with dependencies (textual, websockets) and project metadata
+- [x] Create `src/pacman/__init__.py` and `src/pacman/__main__.py` entry point (accepts `--host` arg)
+- [x] Create `tests/` directory with `conftest.py`
+- [x] Install project in dev mode, verify `python -m pacman --help` runs
+- [x] Run tests (empty suite) — must pass before next task
 
 ### Task 2: Protocol models
 - [ ] Create `src/pacman/models.py` with dataclasses for all 6 server message types: `Welcome`, `Lobby`, `RoundStart`, `State`, `RoundEnd`, `Error`
