@@ -115,8 +115,8 @@
 - [x] Run linter (ruff) — all issues must be fixed
 
 ### Task 10: [Final] Update documentation
-- [ ] Update README.md with: project description, install instructions, usage (`python -m pacman --host <host>`)
-- [ ] Add screenshot or ASCII preview of the TUI if practical
+- [x] Update README.md with: project description, install instructions, usage (`python -m pacman --host <host>`)
+- [x] Add screenshot or ASCII preview of the TUI if practical
 
 ## Technical Details
 
