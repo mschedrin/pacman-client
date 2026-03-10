@@ -54,13 +54,13 @@
 - [x] Run tests — must pass before next task
 
 ### Task 3: WebSocket client
-- [ ] Create `src/pacman/client.py` with `PacmanClient` class
-- [ ] Implement `connect(url)`, `close()`, `join(name)`, `send_direction(direction)`
-- [ ] Implement `messages()` async generator that yields parsed `ServerMessage` objects
-- [ ] Add direction dedup logic (don't send if same as last direction)
-- [ ] Write tests for client methods using mocked websocket (verify JSON sent, messages parsed)
-- [ ] Write tests for direction dedup behavior
-- [ ] Run tests — must pass before next task
+- [x] Create `src/pacman/client.py` with `PacmanClient` class
+- [x] Implement `connect(url)`, `close()`, `join(name)`, `send_direction(direction)`
+- [x] Implement `messages()` async generator that yields parsed `ServerMessage` objects
+- [x] Add direction dedup logic (don't send if same as last direction)
+- [x] Write tests for client methods using mocked websocket (verify JSON sent, messages parsed)
+- [x] Write tests for direction dedup behavior
+- [x] Run tests — must pass before next task
 
 ### Task 4: Grid renderer
 - [ ] Create `src/pacman/renderer.py` with `render_grid(game_map, state, my_id) -> Text` function
