@@ -63,14 +63,14 @@
 - [x] Run tests — must pass before next task
 
 ### Task 4: Grid renderer
-- [ ] Create `src/pacman/renderer.py` with `render_grid(game_map, state, my_id) -> Text` function
-- [ ] Implement cell rendering: wall (blue `██`), dot (white `··`), power pellet (bright `●●`), empty (`  `)
-- [ ] Overlay remaining dots/pellets from state (not original map)
-- [ ] Overlay player positions: pacman (yellow `ᗧ`), ghost (colored `ᗣ`), dead (gray `✕`), vulnerable ghost (blue `ᗣ`), respawning (gray `··`)
-- [ ] Highlight own player with bold styling
-- [ ] Write tests for render_grid with a small test map (verify correct characters and styles at known positions)
-- [ ] Write tests for player overlay (active, dead, vulnerable, respawning states)
-- [ ] Run tests — must pass before next task
+- [x] Create `src/pacman/renderer.py` with `render_grid(game_map, state, my_id) -> Text` function
+- [x] Implement cell rendering: wall (blue `██`), dot (white `··`), power pellet (bright `●●`), empty (`  `)
+- [x] Overlay remaining dots/pellets from state (not original map)
+- [x] Overlay player positions: pacman (yellow `ᗧ`), ghost (colored `ᗣ`), dead (gray `✕`), vulnerable ghost (blue `ᗣ`), respawning (gray `··`)
+- [x] Highlight own player with bold styling
+- [x] Write tests for render_grid with a small test map (verify correct characters and styles at known positions)
+- [x] Write tests for player overlay (active, dead, vulnerable, respawning states)
+- [x] Run tests — must pass before next task
 
 ### Task 5: Lobby widget
 - [ ] Create `src/pacman/widgets/lobby.py` with `LobbyWidget(Static)` that displays player list and "Waiting for round..." status
