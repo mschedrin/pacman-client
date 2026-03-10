@@ -40,8 +40,7 @@ def normalize_url(host: str) -> str:
     """
     if not host.startswith(("ws://", "wss://")):
         return f"ws://{host}/ws"
-    elif not host.endswith("/ws"):
-        return f"{host}/ws"
+    # If user provided a full ws:// or wss:// URL, trust it as-is
     return host
 
 

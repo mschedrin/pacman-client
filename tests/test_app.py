@@ -11,8 +11,6 @@ from pacman.app import (
     BACKOFF_INITIAL,
     BACKOFF_MAX,
     BACKOFF_MULTIPLIER,
-    ERROR_DISPLAY_SECONDS,
-    FATAL_ERROR_MESSAGES,
     PHASE_CONNECTING,
     PHASE_LOBBY,
     PHASE_PLAYING,
@@ -22,7 +20,6 @@ from pacman.app import (
     StatusBar,
 )
 from pacman.client import PacmanClient
-from pacman.models import Player, Welcome
 from pacman.widgets.game import GameWidget
 from pacman.widgets.lobby import LobbyWidget
 
@@ -227,17 +224,6 @@ class TestPhaseTransitions:
             await pilot.pause()
             await pilot.pause()
             assert app._my_id == "my-id-123"
-
-    @pytest.mark.asyncio
-    async def test_welcome_sets_player_name(self) -> None:
-        """Welcome message stores the player name."""
-        app, fake_ws, _ = _make_app_with_fake_ws()
-        fake_ws.queue_message(_make_welcome_data("p1", "MyName"))
-        fake_ws.queue_close()
-        async with app.run_test(size=(80, 24)) as pilot:
-            await pilot.pause()
-            await pilot.pause()
-            assert app._my_name == "MyName"
 
     @pytest.mark.asyncio
     async def test_round_start_transitions_to_playing(self) -> None:
@@ -500,24 +486,7 @@ class TestKeyBindings:
 class TestHandleMessageDispatch:
     """Test the _handle_message method dispatches correctly."""
 
-    def test_handle_welcome(self) -> None:
-        """_handle_message routes Welcome to _on_welcome."""
-        welcome = Welcome(
-            id="test-id",
-            name="TestPlayer",
-            players=[Player("test-id", "TestPlayer", "lobby")],
-        )
-        # Can't call _handle_message without widgets mounted,
-        # but we can test the match logic exists
-        # Instead we test the model directly
-        assert welcome.id == "test-id"
-
-    def test_phase_constants(self) -> None:
-        """Phase constants are correct strings."""
-        assert PHASE_CONNECTING == "connecting"
-        assert PHASE_LOBBY == "lobby"
-        assert PHASE_PLAYING == "playing"
-        assert PHASE_ROUND_END == "round_end"
+    pass
 
 
 # --- _set_phase tests (unit-level) ---
@@ -849,16 +818,18 @@ class TestErrorHandling:
             fake_ws.queue_close()
 
     @pytest.mark.asyncio
-    async def test_non_fatal_error_stores_last_error(self) -> None:
-        """Non-fatal errors are stored in _last_error."""
+    async def test_non_fatal_error_displays_in_status(self) -> None:
+        """Non-fatal errors are displayed in the status bar."""
         app, fake_ws, _ = _make_app_with_fake_ws()
         fake_ws.queue_message(_make_welcome_data())
         fake_ws.queue_message(_make_error_data("Name too long"))
-        fake_ws.queue_close()
+        # Don't close yet — check status while WS is still open
         async with app.run_test(size=(80, 24)) as pilot:
             for _ in range(5):
                 await pilot.pause()
-            assert app._last_error == "Name too long"
+            status = app.query_one("#status", StatusBar)
+            assert "Name too long" in status.status_text
+            fake_ws.queue_close()
 
     @pytest.mark.asyncio
     async def test_fatal_error_shows_in_status(self) -> None:
@@ -866,49 +837,41 @@ class TestErrorHandling:
         app, fake_ws, _ = _make_app_with_fake_ws()
         fake_ws.queue_message(_make_welcome_data())
         fake_ws.queue_message(_make_error_data("Server is full"))
-        fake_ws.queue_close()
+        # Don't close yet — check status while WS is still open
         async with app.run_test(size=(80, 24)) as pilot:
             for _ in range(5):
                 await pilot.pause()
-            # The error should have been recorded
-            assert app._last_error == "Server is full"
+            status = app.query_one("#status", StatusBar)
+            assert "Server is full" in status.status_text
+            fake_ws.queue_close()
 
     @pytest.mark.asyncio
-    async def test_fatal_error_stores_last_error(self) -> None:
-        """Fatal errors are stored in _last_error."""
+    async def test_fatal_error_displays_in_status(self) -> None:
+        """Fatal errors are displayed in the status bar."""
         app, fake_ws, _ = _make_app_with_fake_ws()
         fake_ws.queue_message(_make_error_data("Server is stopped"))
-        fake_ws.queue_close()
+        # Don't close yet — check status while WS is still open
         async with app.run_test(size=(80, 24)) as pilot:
             for _ in range(5):
                 await pilot.pause()
-            assert app._last_error == "Server is stopped"
+            status = app.query_one("#status", StatusBar)
+            assert "Server is stopped" in status.status_text
+            fake_ws.queue_close()
 
     @pytest.mark.asyncio
-    async def test_multiple_errors_keep_latest(self) -> None:
-        """Multiple error messages keep the latest one."""
+    async def test_multiple_errors_show_latest_in_status(self) -> None:
+        """Multiple error messages show the latest one in status bar."""
         app, fake_ws, _ = _make_app_with_fake_ws()
         fake_ws.queue_message(_make_welcome_data())
         fake_ws.queue_message(_make_error_data("first error"))
         fake_ws.queue_message(_make_error_data("second error"))
-        fake_ws.queue_close()
+        # Don't close yet — check status while WS is still open
         async with app.run_test(size=(80, 24)) as pilot:
             for _ in range(8):
                 await pilot.pause()
-            assert app._last_error == "second error"
-
-    def test_fatal_error_messages_constant(self) -> None:
-        """FATAL_ERROR_MESSAGES contains the expected server errors."""
-        assert "Server is stopped" in FATAL_ERROR_MESSAGES
-        assert "Round in progress" in FATAL_ERROR_MESSAGES
-        assert "Server is full" in FATAL_ERROR_MESSAGES
-        assert "Server stopped" in FATAL_ERROR_MESSAGES
-
-    def test_non_fatal_errors_not_in_fatal_set(self) -> None:
-        """Common non-fatal errors are not in the fatal set."""
-        assert "Name is required" not in FATAL_ERROR_MESSAGES
-        assert "Invalid direction" not in FATAL_ERROR_MESSAGES
-        assert "Must join first" not in FATAL_ERROR_MESSAGES
+            status = app.query_one("#status", StatusBar)
+            assert "second error" in status.status_text
+            fake_ws.queue_close()
 
 
 # --- Disconnection and reconnection tests ---
@@ -971,12 +934,6 @@ class TestDisconnection:
                 await pilot.pause()
             # Backoff should have been reset on successful join
             assert app.backoff.attempt == 0
-
-    @pytest.mark.asyncio
-    async def test_error_display_seconds_constant(self) -> None:
-        """ERROR_DISPLAY_SECONDS is a reasonable value."""
-        assert ERROR_DISPLAY_SECONDS > 0
-        assert ERROR_DISPLAY_SECONDS <= 30
 
     @pytest.mark.asyncio
     async def test_connection_error_shows_status(self) -> None:

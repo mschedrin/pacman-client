@@ -44,8 +44,8 @@ def test_normalize_url_plain_host() -> None:
 
 
 def test_normalize_url_ws_without_path() -> None:
-    """ws:// URL without /ws gets the path appended."""
-    assert normalize_url("ws://example.com") == "ws://example.com/ws"
+    """ws:// URL without /ws is returned as-is (trust the user)."""
+    assert normalize_url("ws://example.com") == "ws://example.com"
 
 
 def test_normalize_url_ws_with_path() -> None:
@@ -54,5 +54,5 @@ def test_normalize_url_ws_with_path() -> None:
 
 
 def test_normalize_url_wss() -> None:
-    """wss:// URLs are handled correctly."""
-    assert normalize_url("wss://example.com") == "wss://example.com/ws"
+    """wss:// URLs are returned as-is."""
+    assert normalize_url("wss://example.com") == "wss://example.com"

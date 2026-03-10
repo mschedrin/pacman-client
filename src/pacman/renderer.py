@@ -14,42 +14,18 @@ EMPTY = "  "
 PACMAN_CHAR = "ᗧ "
 GHOST_CHAR = "ᗣ "
 DEAD_CHAR = "✕ "
-RESPAWNING_CHAR = "·· "
+RESPAWNING_CHAR = "··"
 
 # Style constants
 WALL_STYLE = "blue"
 DOT_STYLE = "white"
 POWER_PELLET_STYLE = "bright_white"
-PACMAN_STYLE = "bold yellow"
-GHOST_STYLE = "red"
 VULNERABLE_GHOST_STYLE = "bright_blue"
 DEAD_STYLE = "bright_black"
 RESPAWNING_STYLE = "bright_black"
 
 # Ghost colors by index for distinguishing multiple ghosts
 GHOST_COLORS = ["red", "magenta", "cyan", "green"]
-
-
-def _cell_text(cell_type: str) -> tuple[str, str]:
-    """Return (characters, style) for a base cell type.
-
-    Args:
-        cell_type: The cell type string from the map.
-
-    Returns:
-        Tuple of (display characters, Rich style string).
-    """
-    match cell_type:
-        case "wall":
-            return WALL, WALL_STYLE
-        case "dot":
-            return DOT, DOT_STYLE
-        case "power_pellet":
-            return POWER_PELLET, POWER_PELLET_STYLE
-        case "empty" | "pacman_spawn" | "ghost_spawn":
-            return EMPTY, ""
-        case _:
-            return EMPTY, ""
 
 
 def _player_style(player: StatePlayer, my_id: str, ghost_index: int) -> tuple[str, str]:

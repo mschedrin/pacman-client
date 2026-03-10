@@ -13,7 +13,7 @@ guide). Implementation plan is in `docs/plans/pacman-tui-client.md`.
 ```
 src/pacman/
 ├── __init__.py
-├── __main__.py        # Entry point, --host arg
+├── __main__.py        # Entry point, --host/--name args
 ├── app.py             # Textual App, key bindings, WebSocket lifecycle
 ├── client.py          # WebSocket client (connect, send, receive, parse)
 ├── models.py          # Dataclasses for protocol messages

@@ -5,6 +5,7 @@ from typing import Any
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.timer import Timer
 from textual.widgets import Footer, Header, Static
 
 from pacman.client import PacmanClient
@@ -24,9 +25,6 @@ PHASE_CONNECTING = "connecting"
 PHASE_LOBBY = "lobby"
 PHASE_PLAYING = "playing"
 PHASE_ROUND_END = "round_end"
-
-# How long to show round_end results before returning to lobby (seconds)
-ROUND_END_DISPLAY_SECONDS = 3.0
 
 # Default player name
 DEFAULT_PLAYER_NAME = "Player"
@@ -171,10 +169,8 @@ class PacmanApp(App[None]):
         self.backoff = ReconnectBackoff()
         self._phase: str = PHASE_CONNECTING
         self._my_id: str = ""
-        self._my_name: str = ""
         self._my_role: str = ""
-        self._last_error: str = ""
-        self._error_clear_task: asyncio.Task[None] | None = None
+        self._error_clear_task: Timer | None = None
         self._shutting_down: bool = False
 
     @property
@@ -279,7 +275,6 @@ class PacmanApp(App[None]):
     def _on_welcome(self, msg: Welcome) -> None:
         """Handle welcome message: save player ID and enter lobby."""
         self._my_id = msg.id
-        self._my_name = msg.name
         self._set_phase(PHASE_LOBBY)
         lobby = self.query_one("#lobby", LobbyWidget)
         lobby.update_players(msg.players)
@@ -312,7 +307,7 @@ class PacmanApp(App[None]):
         game.update_state(msg)
 
     def _on_round_end(self, msg: RoundEnd) -> None:
-        """Handle round_end: show results briefly, then return to lobby."""
+        """Handle round_end: show result in status bar."""
         self._set_phase(PHASE_ROUND_END)
 
         # Build result message
@@ -323,11 +318,10 @@ class PacmanApp(App[None]):
     def _on_error(self, msg: Error) -> None:
         """Handle error message: display in status bar.
 
-        Fatal errors (server stopped, full, round in progress) are recorded
-        so the reconnect loop knows what happened. Non-fatal errors are shown
-        briefly and then cleared after ERROR_DISPLAY_SECONDS.
+        Fatal errors (server stopped, full, round in progress) are noted
+        in the status bar. Non-fatal errors are shown briefly and then
+        cleared after ERROR_DISPLAY_SECONDS.
         """
-        self._last_error = msg.message
         self._update_status(f"Error: {msg.message}")
 
         # For non-fatal errors, schedule clearing the error display
@@ -337,19 +331,15 @@ class PacmanApp(App[None]):
     def _schedule_error_clear(self) -> None:
         """Schedule clearing the error from the status bar after a delay."""
         # Cancel any pending clear
-        if self._error_clear_task is not None and not self._error_clear_task.done():
-            self._error_clear_task.cancel()
+        if self._error_clear_task is not None:
+            self._error_clear_task.stop()
 
-        try:
-            loop = asyncio.get_running_loop()
-            self._error_clear_task = loop.create_task(self._clear_error_after_delay())
-        except RuntimeError:
-            pass
+        self._error_clear_task = self.set_timer(
+            ERROR_DISPLAY_SECONDS, self._clear_error_callback
+        )
 
-    async def _clear_error_after_delay(self) -> None:
-        """Clear the error status after ERROR_DISPLAY_SECONDS."""
-        await asyncio.sleep(ERROR_DISPLAY_SECONDS)
-        # Only clear if the status still shows our error
+    def _clear_error_callback(self) -> None:
+        """Clear the error status if it's still showing an error."""
         try:
             status = self.query_one("#status", StatusBar)
             if status.status_text.startswith("Error:"):
@@ -399,6 +389,10 @@ class PacmanApp(App[None]):
             pass
 
     async def action_quit(self) -> None:
-        """Quit the application."""
+        """Quit the application, closing the WebSocket connection."""
         self._shutting_down = True
+        try:
+            await self.client.close()
+        except Exception:
+            pass
         self.exit()

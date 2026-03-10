@@ -28,7 +28,7 @@ Built with [Textual](https://textual.textualize.io/) and
  ██· · · · · · · · · · · · · · · · · · ██
  ████████████████████████████████████████
 
- Score: 120   Lives: 3   Tick: 42/200
+ Tick: 42  |  Role: PACMAN  |  Time: 0:02
 ```
 
 - `██` walls

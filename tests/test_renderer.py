@@ -19,7 +19,6 @@ from pacman.renderer import (
     VULNERABLE_GHOST_STYLE,
     WALL,
     WALL_STYLE,
-    _cell_text,
     _pick_display_player,
     render_grid,
 )
@@ -70,46 +69,6 @@ def make_player(
         status=status,
         score=score,
     )
-
-
-# --- _cell_text tests ---
-
-
-class TestCellText:
-    def test_wall(self) -> None:
-        chars, style = _cell_text("wall")
-        assert chars == WALL
-        assert style == WALL_STYLE
-
-    def test_dot(self) -> None:
-        chars, style = _cell_text("dot")
-        assert chars == DOT
-        assert style == DOT_STYLE
-
-    def test_power_pellet(self) -> None:
-        chars, style = _cell_text("power_pellet")
-        assert chars == POWER_PELLET
-        assert style == POWER_PELLET_STYLE
-
-    def test_empty(self) -> None:
-        chars, style = _cell_text("empty")
-        assert chars == EMPTY
-        assert style == ""
-
-    def test_pacman_spawn(self) -> None:
-        chars, style = _cell_text("pacman_spawn")
-        assert chars == EMPTY
-        assert style == ""
-
-    def test_ghost_spawn(self) -> None:
-        chars, style = _cell_text("ghost_spawn")
-        assert chars == EMPTY
-        assert style == ""
-
-    def test_unknown_cell(self) -> None:
-        chars, style = _cell_text("unknown_type")
-        assert chars == EMPTY
-        assert style == ""
 
 
 # --- render_grid basic cell tests ---
