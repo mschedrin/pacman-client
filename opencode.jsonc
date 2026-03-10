@@ -10,10 +10,10 @@
             "model": "github-copilot/claude-opus-4.6"
             // "reasoningEffort": "high"
         },
-        "build": {
-            "model": "github-copilot/gpt-5.3-codex",
-            "reasoningEffort": "high"
-        }
+        // "build": {
+        //     "model": "github-copilot/gpt-5.3-codex",
+        //     "reasoningEffort": "high"
+        // }
     },
     "provider": {
         "github-copilot": {

@@ -3,10 +3,14 @@
 2. start opencode and login with copilot (`/connect`)
 3. restart opencode
 4. make sure you are in build agent (press tab), select opus-4.6 (/models) and enable thinking (ctrl+t)
-5. ~~do the same for plan agent~~
-6. start with brainstorm-ump skill (/skills), for example: `/brainstorm-ump Let's create pacman TUI client. Specs for client are in docs/specs`. Answer questions, then **agree to write plan using ralphex-plan skill when brainstorming is complete*.
-7. Proceed with ralphex-plan skill to create the plan file. **do not start implementation when plan is generated, just let it save the file**.
-8. Now we already have good context in the agent and it's good time to create AGENTS.md so that new sessions have initial context. Run `/init`
-9. Commit all changes before we start using ralphex.
-10. change the model to gpt-5.3-codex for build and plan agent. 
-11. Start ralphex and let it cook `ralphex --serve`
+5. start with brainstorm-ump skill (/skills), for example: `/brainstorm-ump Let's create pacman TUI client. Specs for client are in docs/specs`. Answer questions, then **agree to write plan using ralphex-plan skill when brainstorming is complete*.
+6. Proceed with ralphex-plan skill to create the plan file. **do not start implementation when plan is generated, just let it save the file**.
+7. Now we already have good context in the agent and it's good time to create AGENTS.md so that new sessions have initial context. Run `/init`
+8. Commit all changes and start new branch before we start using ralphex.
+9. If you are low on copilot premium requests change the model to Sonnet 4.6 and enable thinking in build agent. Otherwise it's better to keep running Opus 4.6 thinking.
+10. Quit opencode 
+11. Start ralphex and let it cook `ralphex --serve`. Keep cli process running. You can watch the progress in web interface too: http://localhost:8080
+12. Once ralphex is done, you can try running your application by pointing it to pacman server hostname.
+
+Error scenarios:
+`error: runner: pre-codex review loop: review failed (FAILED signal received)` - the feature is done and reviewed, only external review by another model have not completed. 

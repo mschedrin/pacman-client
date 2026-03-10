@@ -75,8 +75,8 @@ class PacmanClient:
         """
         if direction == self._last_direction:
             return
-        self._last_direction = direction
         await self._send({"type": "input", "direction": direction})
+        self._last_direction = direction
 
     def reset_direction(self) -> None:
         """Reset the direction dedup state.

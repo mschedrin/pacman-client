@@ -213,6 +213,36 @@ class TestSendDirection:
         assert len(fake_ws.sent) == 2
 
     @pytest.mark.asyncio
+    async def test_send_direction_not_advanced_on_failure(
+        self, client: PacmanClient, fake_ws: FakeWebSocket
+    ) -> None:
+        """_last_direction is not updated when _send() raises, allowing retry."""
+        # Make send raise after the first successful call
+        await client.send_direction("up")
+        assert len(fake_ws.sent) == 1
+
+        # Now make send fail
+        original_send = fake_ws.send
+
+        async def failing_send(data: str) -> None:
+            raise ConnectionError("socket closed")
+
+        fake_ws.send = failing_send  # type: ignore[assignment]
+
+        with pytest.raises(ConnectionError):
+            await client.send_direction("right")
+
+        # _last_direction should still be "up" since the send failed
+        assert client._last_direction == "up"
+
+        # Restore send and retry — should succeed because dedup was not advanced
+        fake_ws.send = original_send
+        await client.send_direction("right")
+        assert len(fake_ws.sent) == 2
+        msg = json.loads(fake_ws.sent[1])
+        assert msg == {"type": "input", "direction": "right"}
+
+    @pytest.mark.asyncio
     async def test_close_resets_direction(self, fake_ws: FakeWebSocket) -> None:
         """close() resets the direction dedup state."""
         client = PacmanClient()
