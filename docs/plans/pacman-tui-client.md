@@ -79,12 +79,12 @@
 - [x] Run tests — must pass before next task
 
 ### Task 6: Game widget
-- [ ] Create `src/pacman/widgets/game.py` with `GameWidget(Static)` that displays the rendered grid
-- [ ] Add scoreboard sidebar: player names, scores, roles, sorted by score
-- [ ] Add status line: tick count, your role, time elapsed
-- [ ] Accept state updates via a method (e.g., `update_state(state)`)
-- [ ] Write tests for game widget (verify it calls renderer, shows scoreboard data)
-- [ ] Run tests — must pass before next task
+- [x] Create `src/pacman/widgets/game.py` with `GameWidget(Static)` that displays the rendered grid
+- [x] Add scoreboard sidebar: player names, scores, roles, sorted by score
+- [x] Add status line: tick count, your role, time elapsed
+- [x] Accept state updates via a method (e.g., `update_state(state)`)
+- [x] Write tests for game widget (verify it calls renderer, shows scoreboard data)
+- [x] Run tests — must pass before next task
 
 ### Task 7: Main app — wiring it all together
 - [ ] Create `src/pacman/app.py` with `PacmanApp(App)` class
