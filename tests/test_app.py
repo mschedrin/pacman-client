@@ -8,11 +8,17 @@ import json
 import pytest
 
 from pacman.app import (
+    BACKOFF_INITIAL,
+    BACKOFF_MAX,
+    BACKOFF_MULTIPLIER,
+    ERROR_DISPLAY_SECONDS,
+    FATAL_ERROR_MESSAGES,
     PHASE_CONNECTING,
     PHASE_LOBBY,
     PHASE_PLAYING,
     PHASE_ROUND_END,
     PacmanApp,
+    ReconnectBackoff,
     StatusBar,
 )
 from pacman.client import PacmanClient
@@ -162,11 +168,13 @@ def _make_error_data(message: str = "test error") -> dict:
     return {"type": "error", "message": message}
 
 
-def _make_app_with_fake_ws() -> tuple[PacmanApp, FakeWebSocket, PacmanClient]:
+def _make_app_with_fake_ws(
+    reconnect: bool = False,
+) -> tuple[PacmanApp, FakeWebSocket, PacmanClient]:
     """Create a PacmanApp with a fake WebSocket injected into the client.
 
-    Returns a tuple of (app, fake_ws, client). The app's _ws_loop
-    is NOT started automatically; tests control the message flow.
+    Returns a tuple of (app, fake_ws, client). The client is pre-connected
+    via the fake WS. Reconnect is disabled by default for test stability.
     """
     fake_ws = FakeWebSocket()
     client = PacmanClient()
@@ -175,6 +183,7 @@ def _make_app_with_fake_ws() -> tuple[PacmanApp, FakeWebSocket, PacmanClient]:
         url="ws://localhost:8000/ws",
         player_name="TestPlayer",
         client=client,
+        reconnect=reconnect,
     )
     return app, fake_ws, client
 
@@ -422,13 +431,14 @@ class TestMessageHandling:
         app, fake_ws, _ = _make_app_with_fake_ws()
         fake_ws.queue_message(_make_welcome_data())
         fake_ws.queue_message(_make_error_data("Something went wrong"))
-        fake_ws.queue_close()
+        # Don't close yet — check status while WS is still open
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
             await pilot.pause()
             await pilot.pause()
             status = app.query_one("#status", StatusBar)
             assert "Something went wrong" in status.status_text
+            fake_ws.queue_close()
 
     @pytest.mark.asyncio
     async def test_state_ignored_when_not_playing(self) -> None:
@@ -661,6 +671,21 @@ class TestAppConstruction:
         app = PacmanApp(url="ws://test/ws", player_name="Test")
         assert isinstance(app.client, PacmanClient)
 
+    def test_app_reconnect_enabled_by_default(self) -> None:
+        """App has reconnect enabled by default."""
+        app = PacmanApp(url="ws://test/ws", player_name="Test")
+        assert app.reconnect_enabled is True
+
+    def test_app_reconnect_can_be_disabled(self) -> None:
+        """App reconnect can be disabled for testing."""
+        app = PacmanApp(url="ws://test/ws", player_name="Test", reconnect=False)
+        assert app.reconnect_enabled is False
+
+    def test_app_has_backoff(self) -> None:
+        """App initializes with a ReconnectBackoff."""
+        app = PacmanApp(url="ws://test/ws", player_name="Test")
+        assert isinstance(app.backoff, ReconnectBackoff)
+
 
 # --- Status bar tests ---
 
@@ -675,25 +700,27 @@ class TestStatusBar:
         fake_ws.queue_message(_make_welcome_data("p1", "TestPlayer"))
         fake_ws.queue_message(_make_round_start_data())
         fake_ws.queue_message(_make_round_end_data("pacman", {"p1": 42}))
-        fake_ws.queue_close()
+        # Don't close yet — check status while WS is still open
         async with app.run_test(size=(80, 24)) as pilot:
             for _ in range(10):
                 await pilot.pause()
             status = app.query_one("#status", StatusBar)
             assert "pacman" in status.status_text
             assert "42" in status.status_text
+            fake_ws.queue_close()
 
     @pytest.mark.asyncio
     async def test_welcome_shows_join_info(self) -> None:
         """Welcome shows join info in the status bar."""
         app, fake_ws, _ = _make_app_with_fake_ws()
         fake_ws.queue_message(_make_welcome_data("abc-12345678", "TestPlayer"))
-        fake_ws.queue_close()
+        # Don't close yet — check status while WS is still open
         async with app.run_test(size=(80, 24)) as pilot:
             for _ in range(5):
                 await pilot.pause()
             status = app.query_one("#status", StatusBar)
             assert "TestPlayer" in status.status_text
+            fake_ws.queue_close()
 
 
 # --- Compose tests ---
@@ -728,3 +755,240 @@ class TestCompose:
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
             assert app.query_one("#status", StatusBar) is not None
+
+
+# --- ReconnectBackoff unit tests ---
+
+
+class TestReconnectBackoff:
+    """Test the exponential backoff logic for reconnection."""
+
+    def test_initial_delay(self) -> None:
+        """First delay is the initial value."""
+        backoff = ReconnectBackoff(initial=1.0, multiplier=2.0, maximum=10.0)
+        assert backoff.next_delay() == 1.0
+
+    def test_exponential_growth(self) -> None:
+        """Delays double each time."""
+        backoff = ReconnectBackoff(initial=1.0, multiplier=2.0, maximum=10.0)
+        delays = [backoff.next_delay() for _ in range(5)]
+        assert delays == [1.0, 2.0, 4.0, 8.0, 10.0]
+
+    def test_capped_at_maximum(self) -> None:
+        """Delay never exceeds the maximum."""
+        backoff = ReconnectBackoff(initial=1.0, multiplier=2.0, maximum=10.0)
+        delay = 0.0
+        for _ in range(10):
+            delay = backoff.next_delay()
+        assert delay == 10.0
+
+    def test_reset_restarts_sequence(self) -> None:
+        """After reset, delays start from initial again."""
+        backoff = ReconnectBackoff(initial=1.0, multiplier=2.0, maximum=10.0)
+        backoff.next_delay()  # 1
+        backoff.next_delay()  # 2
+        backoff.next_delay()  # 4
+        backoff.reset()
+        assert backoff.next_delay() == 1.0
+
+    def test_attempt_counter(self) -> None:
+        """Attempt counter tracks number of calls."""
+        backoff = ReconnectBackoff()
+        assert backoff.attempt == 0
+        backoff.next_delay()
+        assert backoff.attempt == 1
+        backoff.next_delay()
+        assert backoff.attempt == 2
+
+    def test_attempt_resets(self) -> None:
+        """Reset clears the attempt counter."""
+        backoff = ReconnectBackoff()
+        backoff.next_delay()
+        backoff.next_delay()
+        backoff.reset()
+        assert backoff.attempt == 0
+
+    def test_custom_parameters(self) -> None:
+        """Custom initial, multiplier, and maximum work correctly."""
+        backoff = ReconnectBackoff(initial=0.5, multiplier=3.0, maximum=5.0)
+        delays = [backoff.next_delay() for _ in range(4)]
+        assert delays == [0.5, 1.5, 4.5, 5.0]
+
+    def test_default_parameters(self) -> None:
+        """Default parameters match the module constants."""
+        backoff = ReconnectBackoff()
+        assert backoff.initial == BACKOFF_INITIAL
+        assert backoff.multiplier == BACKOFF_MULTIPLIER
+        assert backoff.maximum == BACKOFF_MAX
+
+    def test_single_step_to_max(self) -> None:
+        """When initial equals maximum, all delays are the same."""
+        backoff = ReconnectBackoff(initial=10.0, multiplier=2.0, maximum=10.0)
+        assert backoff.next_delay() == 10.0
+        assert backoff.next_delay() == 10.0
+
+
+# --- Error handling tests ---
+
+
+class TestErrorHandling:
+    """Test error message handling in the app."""
+
+    @pytest.mark.asyncio
+    async def test_non_fatal_error_shows_in_status(self) -> None:
+        """Non-fatal error messages display in the status bar."""
+        app, fake_ws, _ = _make_app_with_fake_ws()
+        fake_ws.queue_message(_make_welcome_data())
+        fake_ws.queue_message(_make_error_data("Invalid direction"))
+        # Don't close yet — check status while WS is still open
+        async with app.run_test(size=(80, 24)) as pilot:
+            for _ in range(5):
+                await pilot.pause()
+            status = app.query_one("#status", StatusBar)
+            assert "Invalid direction" in status.status_text
+            fake_ws.queue_close()
+
+    @pytest.mark.asyncio
+    async def test_non_fatal_error_stores_last_error(self) -> None:
+        """Non-fatal errors are stored in _last_error."""
+        app, fake_ws, _ = _make_app_with_fake_ws()
+        fake_ws.queue_message(_make_welcome_data())
+        fake_ws.queue_message(_make_error_data("Name too long"))
+        fake_ws.queue_close()
+        async with app.run_test(size=(80, 24)) as pilot:
+            for _ in range(5):
+                await pilot.pause()
+            assert app._last_error == "Name too long"
+
+    @pytest.mark.asyncio
+    async def test_fatal_error_shows_in_status(self) -> None:
+        """Fatal error messages display in the status bar before disconnect."""
+        app, fake_ws, _ = _make_app_with_fake_ws()
+        fake_ws.queue_message(_make_welcome_data())
+        fake_ws.queue_message(_make_error_data("Server is full"))
+        fake_ws.queue_close()
+        async with app.run_test(size=(80, 24)) as pilot:
+            for _ in range(5):
+                await pilot.pause()
+            # The error should have been recorded
+            assert app._last_error == "Server is full"
+
+    @pytest.mark.asyncio
+    async def test_fatal_error_stores_last_error(self) -> None:
+        """Fatal errors are stored in _last_error."""
+        app, fake_ws, _ = _make_app_with_fake_ws()
+        fake_ws.queue_message(_make_error_data("Server is stopped"))
+        fake_ws.queue_close()
+        async with app.run_test(size=(80, 24)) as pilot:
+            for _ in range(5):
+                await pilot.pause()
+            assert app._last_error == "Server is stopped"
+
+    @pytest.mark.asyncio
+    async def test_multiple_errors_keep_latest(self) -> None:
+        """Multiple error messages keep the latest one."""
+        app, fake_ws, _ = _make_app_with_fake_ws()
+        fake_ws.queue_message(_make_welcome_data())
+        fake_ws.queue_message(_make_error_data("first error"))
+        fake_ws.queue_message(_make_error_data("second error"))
+        fake_ws.queue_close()
+        async with app.run_test(size=(80, 24)) as pilot:
+            for _ in range(8):
+                await pilot.pause()
+            assert app._last_error == "second error"
+
+    def test_fatal_error_messages_constant(self) -> None:
+        """FATAL_ERROR_MESSAGES contains the expected server errors."""
+        assert "Server is stopped" in FATAL_ERROR_MESSAGES
+        assert "Round in progress" in FATAL_ERROR_MESSAGES
+        assert "Server is full" in FATAL_ERROR_MESSAGES
+        assert "Server stopped" in FATAL_ERROR_MESSAGES
+
+    def test_non_fatal_errors_not_in_fatal_set(self) -> None:
+        """Common non-fatal errors are not in the fatal set."""
+        assert "Name is required" not in FATAL_ERROR_MESSAGES
+        assert "Invalid direction" not in FATAL_ERROR_MESSAGES
+        assert "Must join first" not in FATAL_ERROR_MESSAGES
+
+
+# --- Disconnection and reconnection tests ---
+
+
+class TestDisconnection:
+    """Test disconnection and reconnection behavior."""
+
+    @pytest.mark.asyncio
+    async def test_disconnect_shows_status_when_reconnect_disabled(self) -> None:
+        """When reconnect is disabled, disconnection shows in status bar."""
+        app, fake_ws, _ = _make_app_with_fake_ws(reconnect=False)
+        fake_ws.queue_message(_make_welcome_data())
+        fake_ws.queue_close()
+        async with app.run_test(size=(80, 24)) as pilot:
+            for _ in range(5):
+                await pilot.pause()
+            status = app.query_one("#status", StatusBar)
+            # After clean disconnect, should show disconnected status
+            assert "Disconnected" in status.status_text
+
+    @pytest.mark.asyncio
+    async def test_disconnect_returns_to_connecting_phase(self) -> None:
+        """After disconnect with reconnect disabled, phase reflects state."""
+        app, fake_ws, _ = _make_app_with_fake_ws(reconnect=False)
+        fake_ws.queue_close()
+        async with app.run_test(size=(80, 24)) as pilot:
+            for _ in range(5):
+                await pilot.pause()
+            # With reconnect disabled, the loop exits
+            # Phase should be connecting since we never got past it
+            assert app.phase == PHASE_CONNECTING
+
+    @pytest.mark.asyncio
+    async def test_quit_sets_shutting_down(self) -> None:
+        """Pressing quit sets _shutting_down to stop reconnect loop."""
+        app, fake_ws, _ = _make_app_with_fake_ws()
+        fake_ws.queue_message(_make_welcome_data())
+        fake_ws.queue_close()
+        async with app.run_test(size=(80, 24)) as pilot:
+            for _ in range(3):
+                await pilot.pause()
+            await pilot.press("q")
+            await pilot.pause()
+            assert app._shutting_down is True
+
+    @pytest.mark.asyncio
+    async def test_backoff_reset_on_successful_connect(self) -> None:
+        """Backoff resets after a successful connection (join completes)."""
+        app, fake_ws, _ = _make_app_with_fake_ws(reconnect=False)
+        # Manually set backoff to a non-initial state
+        app.backoff.next_delay()
+        app.backoff.next_delay()
+        assert app.backoff.attempt == 2
+
+        fake_ws.queue_message(_make_welcome_data())
+        fake_ws.queue_close()
+        async with app.run_test(size=(80, 24)) as pilot:
+            for _ in range(5):
+                await pilot.pause()
+            # Backoff should have been reset on successful join
+            assert app.backoff.attempt == 0
+
+    @pytest.mark.asyncio
+    async def test_error_display_seconds_constant(self) -> None:
+        """ERROR_DISPLAY_SECONDS is a reasonable value."""
+        assert ERROR_DISPLAY_SECONDS > 0
+        assert ERROR_DISPLAY_SECONDS <= 30
+
+    @pytest.mark.asyncio
+    async def test_connection_error_shows_status(self) -> None:
+        """Connection errors display in status bar."""
+        app, fake_ws, _ = _make_app_with_fake_ws(reconnect=False)
+        # Make the fake WS raise an exception during iteration
+        fake_ws.queue_message(_make_welcome_data())
+        # Queue an invalid JSON to cause a parse error
+        fake_ws.queue_message("not valid json")
+        fake_ws.queue_close()
+        async with app.run_test(size=(80, 24)) as pilot:
+            for _ in range(8):
+                await pilot.pause()
+            status = app.query_one("#status", StatusBar)
+            assert "Disconnected" in status.status_text

@@ -1,5 +1,6 @@
 """Main Textual application for the Pacman TUI client."""
 
+import asyncio
 from typing import Any
 
 from textual.app import App, ComposeResult
@@ -29,6 +30,61 @@ ROUND_END_DISPLAY_SECONDS = 3.0
 
 # Default player name
 DEFAULT_PLAYER_NAME = "Player"
+
+# Reconnection backoff settings
+BACKOFF_INITIAL = 1.0
+BACKOFF_MULTIPLIER = 2.0
+BACKOFF_MAX = 10.0
+
+# Fatal error messages from the server that close the connection
+FATAL_ERROR_MESSAGES = frozenset(
+    {
+        "Server is stopped",
+        "Round in progress",
+        "Server is full",
+        "Server stopped",
+    }
+)
+
+# How long to display non-fatal error messages in status bar (seconds)
+ERROR_DISPLAY_SECONDS = 5.0
+
+
+class ReconnectBackoff:
+    """Computes exponential backoff delays for reconnection attempts.
+
+    Starts at `initial` seconds, doubles each attempt, capped at `maximum`.
+    Call `reset()` after a successful connection to start over.
+    """
+
+    def __init__(
+        self,
+        initial: float = BACKOFF_INITIAL,
+        multiplier: float = BACKOFF_MULTIPLIER,
+        maximum: float = BACKOFF_MAX,
+    ) -> None:
+        self.initial = initial
+        self.multiplier = multiplier
+        self.maximum = maximum
+        self._current = initial
+        self._attempt = 0
+
+    @property
+    def attempt(self) -> int:
+        """Number of reconnection attempts made."""
+        return self._attempt
+
+    def next_delay(self) -> float:
+        """Return the next backoff delay and advance the counter."""
+        delay = self._current
+        self._attempt += 1
+        self._current = min(self._current * self.multiplier, self.maximum)
+        return delay
+
+    def reset(self) -> None:
+        """Reset backoff to initial state after a successful connection."""
+        self._current = self.initial
+        self._attempt = 0
 
 
 class StatusBar(Static):
@@ -67,7 +123,8 @@ class PacmanApp(App[None]):
     """Multiplayer Pacman TUI client application.
 
     Connects to a game server via WebSocket, renders the game in a terminal
-    with Unicode and color. Supports lobby and playing phases.
+    with Unicode and color. Supports lobby and playing phases with automatic
+    reconnection on disconnect.
     """
 
     TITLE = "Pacman"
@@ -95,6 +152,7 @@ class PacmanApp(App[None]):
         url: str,
         player_name: str = DEFAULT_PLAYER_NAME,
         client: PacmanClient | None = None,
+        reconnect: bool = True,
         **kwargs: Any,
     ) -> None:
         """Initialize the Pacman app.
@@ -103,15 +161,21 @@ class PacmanApp(App[None]):
             url: WebSocket URL to connect to (e.g. ws://localhost:8000/ws).
             player_name: Display name for this player.
             client: Optional PacmanClient instance (for testing).
+            reconnect: Whether to auto-reconnect on disconnect. Disable for tests.
         """
         super().__init__(**kwargs)
         self.url = url
         self.player_name = player_name
         self.client = client or PacmanClient()
+        self.reconnect_enabled = reconnect
+        self.backoff = ReconnectBackoff()
         self._phase: str = PHASE_CONNECTING
         self._my_id: str = ""
         self._my_name: str = ""
         self._my_role: str = ""
+        self._last_error: str = ""
+        self._error_clear_task: asyncio.Task[None] | None = None
+        self._shutting_down: bool = False
 
     @property
     def phase(self) -> str:
@@ -135,21 +199,63 @@ class PacmanApp(App[None]):
     async def _ws_loop(self) -> None:
         """Background worker: connect, join, and process messages.
 
+        Implements an outer reconnect loop with exponential backoff.
         If the client is already connected (e.g. injected for testing),
         skips the connect step and proceeds directly to join + listen.
         """
-        try:
-            if not self.client.connected:
-                await self.client.connect(self.url)
-            await self.client.join(self.player_name)
-            self._update_status(f"Connected to {self.url}")
+        while not self._shutting_down:
+            try:
+                if not self.client.connected:
+                    self._set_phase(PHASE_CONNECTING)
+                    attempt = self.backoff.attempt
+                    if attempt == 0:
+                        status_msg = f"Connecting to {self.url}..."
+                    else:
+                        status_msg = (
+                            f"Reconnecting to {self.url} (attempt {attempt + 1})..."
+                        )
+                    self._update_status(status_msg)
+                    await self.client.connect(self.url)
 
-            async for msg in self.client.messages():
-                self._handle_message(msg)
-        except Exception as exc:
-            self._update_status(f"Connection error: {exc}")
-        finally:
-            await self.client.close()
+                await self.client.join(self.player_name)
+                self.backoff.reset()
+                self._update_status(f"Connected to {self.url}")
+
+                async for msg in self.client.messages():
+                    self._handle_message(msg)
+
+                # messages() ended normally (server closed connection cleanly)
+                await self.client.close()
+
+            except Exception as exc:
+                error_str = str(exc)
+                try:
+                    await self.client.close()
+                except Exception:
+                    pass
+
+                if not self.reconnect_enabled:
+                    self._update_status(f"Disconnected: {error_str}")
+                    return
+
+                # Show disconnect status
+                self._set_phase(PHASE_CONNECTING)
+                delay = self.backoff.next_delay()
+                self._update_status(
+                    f"Disconnected: {error_str} — reconnecting in {delay:.0f}s..."
+                )
+                await asyncio.sleep(delay)
+                continue
+
+            # Reached here if messages() ended without exception (clean close)
+            if not self.reconnect_enabled:
+                self._update_status("Disconnected")
+                return
+
+            self._set_phase(PHASE_CONNECTING)
+            delay = self.backoff.next_delay()
+            self._update_status(f"Disconnected — reconnecting in {delay:.0f}s...")
+            await asyncio.sleep(delay)
 
     def _handle_message(
         self,
@@ -215,8 +321,41 @@ class PacmanApp(App[None]):
         self._update_status(result_text)
 
     def _on_error(self, msg: Error) -> None:
-        """Handle error message: display in status bar."""
+        """Handle error message: display in status bar.
+
+        Fatal errors (server stopped, full, round in progress) are recorded
+        so the reconnect loop knows what happened. Non-fatal errors are shown
+        briefly and then cleared after ERROR_DISPLAY_SECONDS.
+        """
+        self._last_error = msg.message
         self._update_status(f"Error: {msg.message}")
+
+        # For non-fatal errors, schedule clearing the error display
+        if msg.message not in FATAL_ERROR_MESSAGES:
+            self._schedule_error_clear()
+
+    def _schedule_error_clear(self) -> None:
+        """Schedule clearing the error from the status bar after a delay."""
+        # Cancel any pending clear
+        if self._error_clear_task is not None and not self._error_clear_task.done():
+            self._error_clear_task.cancel()
+
+        try:
+            loop = asyncio.get_running_loop()
+            self._error_clear_task = loop.create_task(self._clear_error_after_delay())
+        except RuntimeError:
+            pass
+
+    async def _clear_error_after_delay(self) -> None:
+        """Clear the error status after ERROR_DISPLAY_SECONDS."""
+        await asyncio.sleep(ERROR_DISPLAY_SECONDS)
+        # Only clear if the status still shows our error
+        try:
+            status = self.query_one("#status", StatusBar)
+            if status.status_text.startswith("Error:"):
+                self._update_status(f"Connected to {self.url}")
+        except Exception:
+            pass
 
     def _set_phase(self, phase: str) -> None:
         """Update the current phase and toggle widget visibility."""
@@ -261,4 +400,5 @@ class PacmanApp(App[None]):
 
     async def action_quit(self) -> None:
         """Quit the application."""
+        self._shutting_down = True
         self.exit()

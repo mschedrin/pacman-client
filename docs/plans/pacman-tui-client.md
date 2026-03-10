@@ -97,13 +97,13 @@
 - [x] Run tests — must pass before next task
 
 ### Task 8: Error handling & reconnection
-- [ ] Add connection error handling: display "Cannot connect" status, retry with backoff (1s, 2s, 4s, max 10s)
-- [ ] Add disconnection handling: show "Disconnected", attempt reconnect + rejoin
-- [ ] Handle fatal server errors (server stopped, full, round in progress) — display message, enter reconnect loop
-- [ ] Handle non-fatal `error` messages — display in status bar briefly
-- [ ] Write tests for reconnection backoff logic
-- [ ] Write tests for error message handling
-- [ ] Run tests — must pass before next task
+- [x] Add connection error handling: display "Cannot connect" status, retry with backoff (1s, 2s, 4s, max 10s)
+- [x] Add disconnection handling: show "Disconnected", attempt reconnect + rejoin
+- [x] Handle fatal server errors (server stopped, full, round in progress) — display message, enter reconnect loop
+- [x] Handle non-fatal `error` messages — display in status bar briefly
+- [x] Write tests for reconnection backoff logic
+- [x] Write tests for error message handling
+- [x] Run tests — must pass before next task
 
 ### Task 9: Verify acceptance criteria
 - [ ] Verify: connects via WebSocket and sends join
