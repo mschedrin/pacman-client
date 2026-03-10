@@ -167,11 +167,14 @@ def _make_error_data(message: str = "test error") -> dict:
 
 def _make_app_with_fake_ws(
     reconnect: bool = False,
+    round_end_display: float = 0.01,
 ) -> tuple[PacmanApp, FakeWebSocket, PacmanClient]:
     """Create a PacmanApp with a fake WebSocket injected into the client.
 
     Returns a tuple of (app, fake_ws, client). The client is pre-connected
     via the fake WS. Reconnect is disabled by default for test stability.
+    Round-end display defaults to 0.01s for fast test execution. Override
+    with a larger value for tests that verify round-end phase persistence.
     """
     fake_ws = FakeWebSocket()
     client = PacmanClient()
@@ -181,6 +184,7 @@ def _make_app_with_fake_ws(
         player_name="TestPlayer",
         client=client,
         reconnect=reconnect,
+        round_end_display=round_end_display,
     )
     return app, fake_ws, client
 
@@ -255,7 +259,7 @@ class TestPhaseTransitions:
     @pytest.mark.asyncio
     async def test_round_end_transitions_to_round_end(self) -> None:
         """Receiving round_end transitions to round_end phase."""
-        app, fake_ws, _ = _make_app_with_fake_ws()
+        app, fake_ws, _ = _make_app_with_fake_ws(round_end_display=60.0)
         fake_ws.queue_message(_make_welcome_data())
         fake_ws.queue_message(_make_round_start_data())
         fake_ws.queue_message(_make_state_data(1))
@@ -270,8 +274,8 @@ class TestPhaseTransitions:
 
     @pytest.mark.asyncio
     async def test_lobby_after_round_end_returns_to_lobby(self) -> None:
-        """Receiving lobby after round_end returns to lobby phase."""
-        app, fake_ws, _ = _make_app_with_fake_ws()
+        """Receiving lobby after round_end defers, then transitions to lobby."""
+        app, fake_ws, _ = _make_app_with_fake_ws(round_end_display=60.0)
         fake_ws.queue_message(_make_welcome_data())
         fake_ws.queue_message(_make_round_start_data())
         fake_ws.queue_message(_make_round_end_data())
@@ -283,7 +287,13 @@ class TestPhaseTransitions:
             await pilot.pause()
             await pilot.pause()
             await pilot.pause()
+            # During round-end display, lobby is deferred
+            assert app.phase == PHASE_ROUND_END
+            assert app._deferred_lobby is not None
+            # Manually trigger the round-end timer callback
+            app._round_end_timer_callback()
             assert app.phase == PHASE_LOBBY
+            assert app._deferred_lobby is None
 
 
 # --- Widget visibility tests ---
@@ -325,7 +335,7 @@ class TestWidgetVisibility:
     @pytest.mark.asyncio
     async def test_game_visible_during_round_end(self) -> None:
         """Game widget stays visible during round_end phase."""
-        app, fake_ws, _ = _make_app_with_fake_ws()
+        app, fake_ws, _ = _make_app_with_fake_ws(round_end_display=60.0)
         fake_ws.queue_message(_make_welcome_data())
         fake_ws.queue_message(_make_round_start_data())
         fake_ws.queue_message(_make_round_end_data())

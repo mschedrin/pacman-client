@@ -48,6 +48,9 @@ FATAL_ERROR_MESSAGES = frozenset(
 # How long to display non-fatal error messages in status bar (seconds)
 ERROR_DISPLAY_SECONDS = 5.0
 
+# How long to show round-end results before transitioning to lobby (seconds)
+ROUND_END_DISPLAY_SECONDS = 3.0
+
 
 class ReconnectBackoff:
     """Computes exponential backoff delays for reconnection attempts.
@@ -152,6 +155,7 @@ class PacmanApp(App[None]):
         player_name: str = DEFAULT_PLAYER_NAME,
         client: PacmanClient | None = None,
         reconnect: bool = True,
+        round_end_display: float = ROUND_END_DISPLAY_SECONDS,
         **kwargs: Any,
     ) -> None:
         """Initialize the Pacman app.
@@ -161,6 +165,7 @@ class PacmanApp(App[None]):
             player_name: Display name for this player.
             client: Optional PacmanClient instance (for testing).
             reconnect: Whether to auto-reconnect on disconnect. Disable for tests.
+            round_end_display: Seconds to show round-end results before lobby.
         """
         super().__init__(**kwargs)
         self.url = url
@@ -172,6 +177,9 @@ class PacmanApp(App[None]):
         self._my_id: str = ""
         self._my_role: str = ""
         self._error_clear_task: Timer | None = None
+        self._round_end_timer: Timer | None = None
+        self._deferred_lobby: Lobby | None = None
+        self._round_end_display = round_end_display
         self._shutting_down: bool = False
 
     @property
@@ -282,7 +290,15 @@ class PacmanApp(App[None]):
         self._update_status(f"Joined as {msg.name} (id: {msg.id[:8]}...)")
 
     def _on_lobby(self, msg: Lobby) -> None:
-        """Handle lobby message: update player list."""
+        """Handle lobby message: update player list.
+
+        If currently showing round-end results, defers the lobby transition
+        until the display timer fires so the user can read the results.
+        """
+        if self._phase == PHASE_ROUND_END:
+            # Defer the lobby transition until round-end display timer fires
+            self._deferred_lobby = msg
+            return
         self._set_phase(PHASE_LOBBY)
         lobby = self.query_one("#lobby", LobbyWidget)
         lobby.update_players(msg.players)
@@ -308,13 +324,28 @@ class PacmanApp(App[None]):
         game.update_state(msg)
 
     def _on_round_end(self, msg: RoundEnd) -> None:
-        """Handle round_end: show result in status bar."""
+        """Handle round_end: show result briefly, then transition to lobby.
+
+        Displays round results for ROUND_END_DISPLAY_SECONDS before
+        transitioning to the lobby phase. If a lobby message arrives
+        during this period, it is deferred and applied when the timer fires.
+        """
         self._set_phase(PHASE_ROUND_END)
+        self._deferred_lobby = None
 
         # Build result message
         my_score = msg.scores.get(self._my_id, 0)
         result_text = f"Round over! Result: {msg.result} | Your score: {my_score}"
         self._update_status(result_text)
+
+        # Cancel any previous round-end timer
+        if self._round_end_timer is not None:
+            self._round_end_timer.stop()
+
+        # Schedule transition to lobby after display period
+        self._round_end_timer = self.set_timer(
+            self._round_end_display, self._round_end_timer_callback
+        )
 
     def _on_error(self, msg: Error) -> None:
         """Handle error message: display in status bar.
@@ -338,6 +369,24 @@ class PacmanApp(App[None]):
         self._error_clear_task = self.set_timer(
             ERROR_DISPLAY_SECONDS, self._clear_error_callback
         )
+
+    def _round_end_timer_callback(self) -> None:
+        """Transition to lobby after round-end display period.
+
+        Applies any deferred lobby message that arrived while the
+        round-end results were being displayed.
+        """
+        if self._phase != PHASE_ROUND_END:
+            return
+
+        self._set_phase(PHASE_LOBBY)
+        if self._deferred_lobby is not None:
+            try:
+                lobby = self.query_one("#lobby", LobbyWidget)
+                lobby.update_players(self._deferred_lobby.players)
+            except NoMatches:
+                pass
+            self._deferred_lobby = None
 
     def _clear_error_callback(self) -> None:
         """Clear the error status if it's still showing an error.
