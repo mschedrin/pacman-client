@@ -28,18 +28,28 @@ class PacmanClient:
     async def connect(self, url: str) -> None:
         """Open a WebSocket connection to the game server.
 
+        Closes any stale connection before opening a new one to prevent
+        resource leaks.
+
         Args:
             url: The WebSocket URL (e.g. ws://localhost:8000/ws).
         """
+        if self._ws is not None:
+            try:
+                await self._ws.close()
+            except Exception:
+                pass
+            self._ws = None
         self._ws = await websockets.connect(url)
         self._last_direction = None
 
     async def close(self) -> None:
         """Close the WebSocket connection."""
         if self._ws is not None:
-            await self._ws.close()
+            ws = self._ws
             self._ws = None
             self._last_direction = None
+            await ws.close()
 
     async def join(self, name: str) -> None:
         """Send a join message to register as a player.
@@ -79,6 +89,9 @@ class PacmanClient:
     async def messages(self) -> AsyncIterator[ServerMessage]:
         """Yield parsed server messages from the WebSocket.
 
+        Malformed or unrecognized messages are silently skipped to avoid
+        tearing down the connection due to a single bad message.
+
         Yields:
             Parsed ServerMessage dataclass instances.
 
@@ -96,8 +109,12 @@ class PacmanClient:
             if raw == "pong":
                 continue
 
-            data = json.loads(raw)
-            yield parse_message(data)
+            try:
+                data = json.loads(raw)
+                yield parse_message(data)
+            except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+                # Skip malformed or unrecognized messages
+                continue
 
     async def _send(self, payload: dict) -> None:
         """Send a JSON message over the WebSocket.

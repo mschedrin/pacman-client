@@ -5,6 +5,7 @@ from typing import Any
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.css.query import NoMatches
 from textual.timer import Timer
 from textual.widgets import Footer, Header, Static
 
@@ -214,7 +215,6 @@ class PacmanApp(App[None]):
                     await self.client.connect(self.url)
 
                 await self.client.join(self.player_name)
-                self.backoff.reset()
                 self._update_status(f"Connected to {self.url}")
 
                 async for msg in self.client.messages():
@@ -275,6 +275,7 @@ class PacmanApp(App[None]):
     def _on_welcome(self, msg: Welcome) -> None:
         """Handle welcome message: save player ID and enter lobby."""
         self._my_id = msg.id
+        self.backoff.reset()
         self._set_phase(PHASE_LOBBY)
         lobby = self.query_one("#lobby", LobbyWidget)
         lobby.update_players(msg.players)
@@ -344,7 +345,7 @@ class PacmanApp(App[None]):
             status = self.query_one("#status", StatusBar)
             if status.status_text.startswith("Error:"):
                 self._update_status(f"Connected to {self.url}")
-        except Exception:
+        except NoMatches:
             pass
 
     def _set_phase(self, phase: str) -> None:
@@ -354,7 +355,7 @@ class PacmanApp(App[None]):
         try:
             lobby = self.query_one("#lobby", LobbyWidget)
             game = self.query_one("#game", GameWidget)
-        except Exception:
+        except NoMatches:
             # Widgets not yet mounted
             return
 
@@ -374,7 +375,7 @@ class PacmanApp(App[None]):
         try:
             status = self.query_one("#status", StatusBar)
             status.set_status(text)
-        except Exception:
+        except NoMatches:
             pass
 
     async def action_direction(self, direction: str) -> None:
