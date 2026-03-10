@@ -87,14 +87,14 @@
 - [x] Run tests — must pass before next task
 
 ### Task 7: Main app — wiring it all together
-- [ ] Create `src/pacman/app.py` with `PacmanApp(App)` class
-- [ ] Implement phase tracking: `connecting` → `lobby` → `playing` → `round_end` → `lobby`
-- [ ] Mount both lobby and game widgets; toggle visibility based on phase
-- [ ] Spawn WebSocket background worker on mount; dispatch messages to widgets
-- [ ] Bind arrow keys to `client.send_direction()`; bind `q` to quit
-- [ ] Handle `round_end`: show result briefly, then transition back to lobby
-- [ ] Write tests for app phase transitions using Textual's pilot testing
-- [ ] Run tests — must pass before next task
+- [x] Create `src/pacman/app.py` with `PacmanApp(App)` class
+- [x] Implement phase tracking: `connecting` → `lobby` → `playing` → `round_end` → `lobby`
+- [x] Mount both lobby and game widgets; toggle visibility based on phase
+- [x] Spawn WebSocket background worker on mount; dispatch messages to widgets
+- [x] Bind arrow keys to `client.send_direction()`; bind `q` to quit
+- [x] Handle `round_end`: show result briefly, then transition back to lobby
+- [x] Write tests for app phase transitions using Textual's pilot testing
+- [x] Run tests — must pass before next task
 
 ### Task 8: Error handling & reconnection
 - [ ] Add connection error handling: display "Cannot connect" status, retry with backoff (1s, 2s, 4s, max 10s)

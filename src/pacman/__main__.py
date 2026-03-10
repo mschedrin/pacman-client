@@ -2,10 +2,12 @@
 
 Usage:
     python -m pacman --host localhost:8000
+    python -m pacman --host localhost:8000 --name MyTeam
 """
 
 import argparse
-import sys
+
+from pacman.app import PacmanApp
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -19,24 +21,36 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         required=True,
         help="Game server host (e.g. localhost:8000)",
     )
+    parser.add_argument(
+        "--name",
+        default="Player",
+        help="Player display name (default: Player)",
+    )
     return parser.parse_args(argv)
+
+
+def normalize_url(host: str) -> str:
+    """Normalize a host string into a WebSocket URL.
+
+    Args:
+        host: Host string (e.g. 'localhost:8000' or 'ws://host/ws').
+
+    Returns:
+        A fully qualified WebSocket URL.
+    """
+    if not host.startswith(("ws://", "wss://")):
+        return f"ws://{host}/ws"
+    elif not host.endswith("/ws"):
+        return f"{host}/ws"
+    return host
 
 
 def main(argv: list[str] | None = None) -> None:
     """Run the Pacman TUI client."""
     args = parse_args(argv)
-    host = args.host
-    # Normalize the host into a WebSocket URL
-    if not host.startswith(("ws://", "wss://")):
-        url = f"ws://{host}/ws"
-    elif not host.endswith("/ws"):
-        url = f"{host}/ws"
-    else:
-        url = host
-
-    print(f"Connecting to {url}...")
-    # App launch will be wired in Task 7
-    sys.exit(0)
+    url = normalize_url(args.host)
+    app = PacmanApp(url=url, player_name=args.name)
+    app.run()
 
 
 if __name__ == "__main__":
