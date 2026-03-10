@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
-import json
-
 import pytest
+from helpers import FakeWebSocket
 
 from pacman.app import (
     BACKOFF_INITIAL,
@@ -22,44 +20,6 @@ from pacman.app import (
 from pacman.client import PacmanClient
 from pacman.widgets.game import GameWidget
 from pacman.widgets.lobby import LobbyWidget
-
-# --- Helpers ---
-
-
-class FakeWebSocket:
-    """A fake WebSocket connection for testing the app."""
-
-    def __init__(self) -> None:
-        self.sent: list[str] = []
-        self._messages: asyncio.Queue[str | None] = asyncio.Queue()
-        self.close_code: int | None = None
-        self.closed: bool = False
-
-    async def send(self, data: str) -> None:
-        self.sent.append(data)
-
-    async def close(self) -> None:
-        self.close_code = 1000
-        self.closed = True
-        self._messages.put_nowait(None)
-
-    def queue_message(self, data: dict | str) -> None:
-        if isinstance(data, dict):
-            self._messages.put_nowait(json.dumps(data))
-        else:
-            self._messages.put_nowait(data)
-
-    def queue_close(self) -> None:
-        self._messages.put_nowait(None)
-
-    def __aiter__(self) -> FakeWebSocket:
-        return self
-
-    async def __anext__(self) -> str:
-        msg = await self._messages.get()
-        if msg is None:
-            raise StopAsyncIteration
-        return msg
 
 
 def _make_player(name: str = "Alice", player_id: str = "p1") -> dict:

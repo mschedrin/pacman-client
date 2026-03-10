@@ -456,11 +456,10 @@ class PacmanApp(App[None]):
         """Handle arrow key input: send direction to server."""
         if self._phase != PHASE_PLAYING:
             return
-        if not self.client.connected:
-            return
         try:
             await self.client.send_direction(direction)
-        except Exception:
+        except (RuntimeError, OSError):
+            # Connection lost — the reconnect loop will handle it
             pass
 
     async def action_quit(self) -> None:

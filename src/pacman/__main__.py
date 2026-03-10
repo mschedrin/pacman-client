@@ -6,8 +6,12 @@ Usage:
 """
 
 import argparse
+import sys
 
 from pacman.app import PacmanApp
+
+# Server enforces 1-30 characters after trimming whitespace
+MAX_NAME_LENGTH = 30
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -48,7 +52,15 @@ def main(argv: list[str] | None = None) -> None:
     """Run the Pacman TUI client."""
     args = parse_args(argv)
     url = normalize_url(args.host)
-    app = PacmanApp(url=url, player_name=args.name)
+    name = args.name.strip()
+    if not name or len(name) > MAX_NAME_LENGTH:
+        print(
+            f"Error: Player name must be 1-{MAX_NAME_LENGTH} characters "
+            f"(got {len(name)} after trimming).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    app = PacmanApp(url=url, player_name=name)
     app.run()
 
 

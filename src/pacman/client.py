@@ -1,6 +1,7 @@
 """WebSocket client for communicating with the Pacman game server."""
 
 import json
+import logging
 from collections.abc import AsyncIterator
 
 import websockets
@@ -13,6 +14,8 @@ VALID_DIRECTIONS = frozenset({"up", "down", "left", "right"})
 
 # Timeout for the WebSocket opening handshake (seconds)
 CONNECT_TIMEOUT = 10
+
+logger = logging.getLogger(__name__)
 
 
 class PacmanClient:
@@ -131,8 +134,8 @@ class PacmanClient:
             try:
                 data = json.loads(raw)
                 yield parse_message(data)
-            except (json.JSONDecodeError, KeyError, ValueError, TypeError):
-                # Skip malformed or unrecognized messages
+            except (json.JSONDecodeError, KeyError, ValueError, TypeError) as exc:
+                logger.warning("Dropped unparseable message: %s (%s)", raw[:200], exc)
                 continue
 
     async def _send(self, payload: dict) -> None:
