@@ -73,10 +73,10 @@
 - [x] Run tests — must pass before next task
 
 ### Task 5: Lobby widget
-- [ ] Create `src/pacman/widgets/lobby.py` with `LobbyWidget(Static)` that displays player list and "Waiting for round..." status
-- [ ] Accept player list updates via a method (e.g., `update_players(players)`)
-- [ ] Write tests for lobby widget rendering (shows player names, correct count)
-- [ ] Run tests — must pass before next task
+- [x] Create `src/pacman/widgets/lobby.py` with `LobbyWidget(Static)` that displays player list and "Waiting for round..." status
+- [x] Accept player list updates via a method (e.g., `update_players(players)`)
+- [x] Write tests for lobby widget rendering (shows player names, correct count)
+- [x] Run tests — must pass before next task
 
 ### Task 6: Game widget
 - [ ] Create `src/pacman/widgets/game.py` with `GameWidget(Static)` that displays the rendered grid
