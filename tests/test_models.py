@@ -59,8 +59,8 @@ def make_round_start_data() -> dict:
     return {
         "type": "round_start",
         "map": {
-            "width": 21,
-            "height": 21,
+            "width": 3,
+            "height": 3,
             "cells": [
                 ["wall", "wall", "wall"],
                 ["wall", "dot", "wall"],
@@ -189,8 +189,8 @@ class TestParseRoundStart:
         msg = parse_message(make_round_start_data())
         assert isinstance(msg, RoundStart)
         assert isinstance(msg.map, GameMap)
-        assert msg.map.width == 21
-        assert msg.map.height == 21
+        assert msg.map.width == 3
+        assert msg.map.height == 3
         assert msg.map.cells[0][0] == "wall"
         assert msg.map.cells[1][1] == "dot"
 

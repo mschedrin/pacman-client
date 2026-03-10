@@ -340,10 +340,19 @@ class PacmanApp(App[None]):
         )
 
     def _clear_error_callback(self) -> None:
-        """Clear the error status if it's still showing an error."""
+        """Clear the error status if it's still showing an error.
+
+        Only restores 'Connected' status if the app is in a connected phase
+        (lobby, playing, or round_end). If disconnected/reconnecting, the
+        error is left visible so it's not replaced with a misleading status.
+        """
         try:
             status = self.query_one("#status", StatusBar)
-            if status.status_text.startswith("Error:"):
+            if status.status_text.startswith("Error:") and self._phase in (
+                PHASE_LOBBY,
+                PHASE_PLAYING,
+                PHASE_ROUND_END,
+            ):
                 self._update_status(f"Connected to {self.url}")
         except NoMatches:
             pass
