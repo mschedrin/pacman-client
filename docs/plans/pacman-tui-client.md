@@ -106,13 +106,13 @@
 - [x] Run tests — must pass before next task
 
 ### Task 9: Verify acceptance criteria
-- [ ] Verify: connects via WebSocket and sends join
-- [ ] Verify: handles all 6 server message types
-- [ ] Verify: sends input direction changes on arrow keys
-- [ ] Verify: renders game state with Unicode + color
-- [ ] Verify: shows lobby between rounds
-- [ ] Run full test suite
-- [ ] Run linter (ruff) — all issues must be fixed
+- [x] Verify: connects via WebSocket and sends join
+- [x] Verify: handles all 6 server message types
+- [x] Verify: sends input direction changes on arrow keys
+- [x] Verify: renders game state with Unicode + color
+- [x] Verify: shows lobby between rounds
+- [x] Run full test suite
+- [x] Run linter (ruff) — all issues must be fixed
 
 ### Task 10: [Final] Update documentation
 - [ ] Update README.md with: project description, install instructions, usage (`python -m pacman --host <host>`)
