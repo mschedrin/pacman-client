@@ -9,7 +9,7 @@
 #   custom_review_script = /path/to/opencode-review.sh
 #
 # environment variables:
-OPENCODE_REVIEW_MODEL="${OPENCODE_REVIEW_MODEL:-githubcopilot/gpt-5.3-codex}"
+OPENCODE_REVIEW_MODEL="${OPENCODE_REVIEW_MODEL:-github-copilot/gpt-5.3-codex}"
 OPENCODE_REVIEW_REASONING="${OPENCODE_REVIEW_REASONING:-high}"
 
 set -euo pipefail
