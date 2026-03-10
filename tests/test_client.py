@@ -90,7 +90,9 @@ class TestConnect:
             mock_connect.return_value = fake
             client = PacmanClient()
             await client.connect("ws://localhost:8000/ws")
-            mock_connect.assert_called_once_with("ws://localhost:8000/ws")
+            mock_connect.assert_called_once_with(
+                "ws://localhost:8000/ws", open_timeout=10
+            )
             assert client.connected
 
     @pytest.mark.asyncio

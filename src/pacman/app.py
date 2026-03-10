@@ -312,6 +312,12 @@ class PacmanApp(App[None]):
 
     def _on_round_start(self, msg: RoundStart) -> None:
         """Handle round_start: configure game widget and enter playing phase."""
+        # Cancel any pending round-end timer and stale deferred lobby data
+        if self._round_end_timer is not None:
+            self._round_end_timer.stop()
+            self._round_end_timer = None
+        self._deferred_lobby = None
+
         self._my_role = msg.role
         self.client.reset_direction()
 

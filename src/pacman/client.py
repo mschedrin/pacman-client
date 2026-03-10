@@ -11,6 +11,9 @@ from pacman.models import ServerMessage, parse_message
 # Valid directions accepted by the server
 VALID_DIRECTIONS = frozenset({"up", "down", "left", "right"})
 
+# Timeout for the WebSocket opening handshake (seconds)
+CONNECT_TIMEOUT = 10
+
 
 class PacmanClient:
     """Manages a WebSocket connection to the Pacman game server.
@@ -43,7 +46,7 @@ class PacmanClient:
             except Exception:
                 pass
             self._ws = None
-        self._ws = await websockets.connect(url)
+        self._ws = await websockets.connect(url, open_timeout=CONNECT_TIMEOUT)
         self._last_direction = None
 
     async def close(self) -> None:
