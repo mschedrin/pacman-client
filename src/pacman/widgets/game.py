@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from rich.cells import cell_len
 from rich.text import Text
 from textual.widgets import Static
 
@@ -197,8 +198,8 @@ def _merge_grid_and_sidebar(grid: Text, sidebar: Text) -> Text:
     """
     grid_lines = grid.plain.split("\n")
 
-    # Calculate grid width from the longest line
-    grid_width = max((len(line) for line in grid_lines), default=0)
+    # Calculate grid width from the longest line (using terminal display width)
+    grid_width = max((cell_len(line) for line in grid_lines), default=0)
 
     # Separator
     separator = "  |  "
@@ -219,7 +220,7 @@ def _merge_grid_and_sidebar(grid: Text, sidebar: Text) -> Text:
         if i < len(grid_text_lines):
             line = grid_text_lines[i]
             result.append_text(line)
-            padding = grid_width - len(line.plain)
+            padding = grid_width - cell_len(line.plain)
             if padding > 0:
                 result.append(" " * padding)
         else:

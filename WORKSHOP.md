@@ -13,4 +13,4 @@
 12. Once ralphex is done, you can try running your application by pointing it to pacman server hostname.
 
 Error scenarios:
-`error: runner: pre-codex review loop: review failed (FAILED signal received)` - the feature is done and reviewed, only external review by another model have not completed. 
+`error: runner: pre-codex review loop: review failed (FAILED signal received)` - the feature is done and reviewed, only external review by another model have not completed. You can either check the result or run external review again: `ralphex --external-only`

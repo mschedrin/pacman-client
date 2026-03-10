@@ -181,6 +181,7 @@ class PacmanApp(App[None]):
         self._deferred_lobby: Lobby | None = None
         self._round_end_display = round_end_display
         self._shutting_down: bool = False
+        self._last_fatal_error: str | None = None
 
     @property
     def phase(self) -> str:
@@ -242,11 +243,13 @@ class PacmanApp(App[None]):
                     self._update_status(f"Disconnected: {error_str}")
                     return
 
-                # Show disconnect status
+                # Show disconnect status, including fatal error reason if known
                 self._set_phase(PHASE_CONNECTING)
                 delay = self.backoff.next_delay()
+                reason = self._last_fatal_error or error_str
+                self._last_fatal_error = None
                 self._update_status(
-                    f"Disconnected: {error_str} — reconnecting in {delay:.0f}s..."
+                    f"Disconnected: {reason} — reconnecting in {delay:.0f}s..."
                 )
                 await asyncio.sleep(delay)
                 continue
@@ -258,7 +261,11 @@ class PacmanApp(App[None]):
 
             self._set_phase(PHASE_CONNECTING)
             delay = self.backoff.next_delay()
-            self._update_status(f"Disconnected — reconnecting in {delay:.0f}s...")
+            reason = self._last_fatal_error or "server closed connection"
+            self._last_fatal_error = None
+            self._update_status(
+                f"Disconnected: {reason} — reconnecting in {delay:.0f}s..."
+            )
             await asyncio.sleep(delay)
 
     def _handle_message(
@@ -351,13 +358,16 @@ class PacmanApp(App[None]):
         """Handle error message: display in status bar.
 
         Fatal errors (server stopped, full, round in progress) are noted
-        in the status bar. Non-fatal errors are shown briefly and then
-        cleared after ERROR_DISPLAY_SECONDS.
+        in the status bar and stored so the reason is preserved in the
+        subsequent reconnect status. Non-fatal errors are shown briefly
+        and then cleared after ERROR_DISPLAY_SECONDS.
         """
         self._update_status(f"Error: {msg.message}")
 
-        # For non-fatal errors, schedule clearing the error display
-        if msg.message not in FATAL_ERROR_MESSAGES:
+        if msg.message in FATAL_ERROR_MESSAGES:
+            self._last_fatal_error = msg.message
+        else:
+            # For non-fatal errors, schedule clearing the error display
             self._schedule_error_clear()
 
     def _schedule_error_clear(self) -> None:

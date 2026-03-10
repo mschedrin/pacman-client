@@ -39,7 +39,7 @@ def normalize_url(host: str) -> str:
         A fully qualified WebSocket URL.
     """
     if not host.startswith(("ws://", "wss://")):
-        return f"ws://{host}/ws"
+        return f"ws://{host.rstrip('/')}/ws"
     # If user provided a full ws:// or wss:// URL, trust it as-is
     return host
 

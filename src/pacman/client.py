@@ -8,6 +8,9 @@ from websockets.asyncio.client import ClientConnection
 
 from pacman.models import ServerMessage, parse_message
 
+# Valid directions accepted by the server
+VALID_DIRECTIONS = frozenset({"up", "down", "left", "right"})
+
 
 class PacmanClient:
     """Manages a WebSocket connection to the Pacman game server.
@@ -44,12 +47,19 @@ class PacmanClient:
         self._last_direction = None
 
     async def close(self) -> None:
-        """Close the WebSocket connection."""
+        """Close the WebSocket connection.
+
+        Safe to call even if the connection is already closed or broken.
+        Exceptions from the underlying close are suppressed.
+        """
         if self._ws is not None:
             ws = self._ws
             self._ws = None
             self._last_direction = None
-            await ws.close()
+            try:
+                await ws.close()
+            except Exception:
+                pass
 
     async def join(self, name: str) -> None:
         """Send a join message to register as a player.
@@ -71,8 +81,14 @@ class PacmanClient:
             direction: One of "up", "down", "left", "right".
 
         Raises:
+            ValueError: If direction is not a valid direction.
             RuntimeError: If not connected.
         """
+        if direction not in VALID_DIRECTIONS:
+            raise ValueError(
+                f"Invalid direction {direction!r}, "
+                f"must be one of {sorted(VALID_DIRECTIONS)}"
+            )
         if direction == self._last_direction:
             return
         await self._send({"type": "input", "direction": direction})
