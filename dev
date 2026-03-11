@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 CONTAINER_NAME="$(basename "$(cd "$(dirname "$0")" && pwd)")_devcontainer"
 WORKSPACE="/workspaces/$(basename "$(cd "$(dirname "$0")" && pwd)")"
-exec docker exec -it -w "$WORKSPACE" "$CONTAINER_NAME" fish
+exec docker exec -it -w "$WORKSPACE" "$CONTAINER_NAME" zsh
