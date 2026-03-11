@@ -19,7 +19,7 @@
     "IS_SANDBOX": "1"
   },
   "postCreateCommand": "sh .devcontainer/setup.sh",
-  "forwardPorts": [8000],
+  "forwardPorts": [8080],
   "customizations": {
     "vscode": {
       "settings": {
